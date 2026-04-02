@@ -1,14 +1,7 @@
 import { MarkdownPostProcessorContext, MarkdownRenderChild, TFile } from "obsidian";
 import RpgClock from "./main";
-import { Color, RpgClockSettings } from "./settings";
-
-interface ClockDef {
-    name: string;
-    filled: number;
-    total: number;
-    color?: Color;
-    lineOffset: number; // line offset from block content start (lineStart + 1)
-}
+import { RpgClockSettings } from "./settings";
+import { ClockDef, Color, parseClocks, serializeClock } from "./parse";
 
 export class Clock extends MarkdownRenderChild {
     plugin: RpgClock;
@@ -29,30 +22,7 @@ export class Clock extends MarkdownRenderChild {
         this.settings = settings;
         this.input = input;
         this.ctx = ctx;
-        this.clockDefs = this.parseInput(input);
-    }
-
-    private parseInput(input: string): ClockDef[] {
-        const defs: ClockDef[] = [];
-        input.split('\n').forEach((line, lineOffset) => {
-            if (!line.trim()) return;
-            const parts = line.split(':');
-            let name: string, value: string, color: Color | undefined;
-            if (parts.length === 1) {
-                name = '';
-                value = parts[0];
-            } else if (parts.length === 2) {
-                [name, value] = parts;
-            } else {
-                name = parts[0];
-                value = parts[1];
-                color = parts.slice(2).join(':') as Color;
-            }
-            const [filled, total] = value.split('/').map(Number);
-            if (isNaN(filled) || isNaN(total)) return;
-            defs.push({ name, filled, total, color, lineOffset });
-        });
-        return defs;
+        this.clockDefs = parseClocks(input);
     }
 
     onload() {
@@ -67,7 +37,7 @@ export class Clock extends MarkdownRenderChild {
     }
 
     public refresh() {
-        this.clockDefs = this.parseInput(this.input);
+        this.clockDefs = parseClocks(this.input);
         this.containerEl.empty();
         this.renderAll();
     }
@@ -327,9 +297,7 @@ export class Clock extends MarkdownRenderChild {
         const content = await this.plugin.app.vault.read(file);
         const lines = content.split('\n');
         if (targetLine >= lines.length) return;
-        let newLine = `${def.name}:${def.filled}/${def.total}`;
-        if (def.color) newLine += `:${def.color}`;
-        lines[targetLine] = newLine;
+        lines[targetLine] = serializeClock(def);
         await this.plugin.app.vault.modify(file, lines.join('\n'));
     }
 
@@ -346,11 +314,7 @@ export class Clock extends MarkdownRenderChild {
         const lines = content.split('\n');
         const blockStart = info.lineStart + 1;
         const blockEnd = info.lineEnd;
-        const newLines = this.clockDefs.map(def => {
-            let line = `${def.name}:${def.filled}/${def.total}`;
-            if (def.color) line += `:${def.color}`;
-            return line;
-        });
+        const newLines = this.clockDefs.map(serializeClock);
         lines.splice(blockStart, blockEnd - blockStart, ...newLines);
         await this.plugin.app.vault.modify(file, lines.join('\n'));
     }

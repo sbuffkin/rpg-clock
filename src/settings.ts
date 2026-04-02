@@ -1,11 +1,8 @@
 import RpgClock from "./main";
 import { App, PluginSettingTab, Setting } from "obsidian";
+import { Color } from "./parse";
 
-type RGB = `rgb(${number}, ${number}, ${number})`;
-type RGBA = `rgba(${number}, ${number}, ${number}, ${number})`;
-type HEX = `#${string}`;
-
-export type Color = RGB | RGBA | HEX;
+export type { Color };
 
 export interface RpgClockSettings {
   clockSize: number;

@@ -32,6 +32,40 @@ var import_obsidian4 = require("obsidian");
 
 // src/clock.ts
 var import_obsidian = require("obsidian");
+
+// src/parse.ts
+function parseClocks(input) {
+  const defs = [];
+  input.split("\n").forEach((line, lineOffset) => {
+    if (!line.trim())
+      return;
+    const parts = line.split(":");
+    let name, value, color;
+    if (parts.length === 1) {
+      name = "";
+      value = parts[0];
+    } else if (parts.length === 2) {
+      [name, value] = parts;
+    } else {
+      name = parts[0];
+      value = parts[1];
+      color = parts.slice(2).join(":");
+    }
+    const [filled, total] = value.split("/").map(Number);
+    if (isNaN(filled) || isNaN(total))
+      return;
+    defs.push({ name, filled, total, color, lineOffset });
+  });
+  return defs;
+}
+function serializeClock(def) {
+  let line = `${def.name}:${def.filled}/${def.total}`;
+  if (def.color)
+    line += `:${def.color}`;
+  return line;
+}
+
+// src/clock.ts
 var Clock = class extends import_obsidian.MarkdownRenderChild {
   constructor(plugin, settings, containerEl, input, ctx) {
     super(containerEl);
@@ -39,31 +73,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     this.settings = settings;
     this.input = input;
     this.ctx = ctx;
-    this.clockDefs = this.parseInput(input);
-  }
-  parseInput(input) {
-    const defs = [];
-    input.split("\n").forEach((line, lineOffset) => {
-      if (!line.trim())
-        return;
-      const parts = line.split(":");
-      let name, value, color;
-      if (parts.length === 1) {
-        name = "";
-        value = parts[0];
-      } else if (parts.length === 2) {
-        [name, value] = parts;
-      } else {
-        name = parts[0];
-        value = parts[1];
-        color = parts.slice(2).join(":");
-      }
-      const [filled, total] = value.split("/").map(Number);
-      if (isNaN(filled) || isNaN(total))
-        return;
-      defs.push({ name, filled, total, color, lineOffset });
-    });
-    return defs;
+    this.clockDefs = parseClocks(input);
   }
   onload() {
     this.containerEl.innerHTML = "";
@@ -76,7 +86,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     }
   }
   refresh() {
-    this.clockDefs = this.parseInput(this.input);
+    this.clockDefs = parseClocks(this.input);
     this.containerEl.empty();
     this.renderAll();
   }
@@ -304,10 +314,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     const lines = content.split("\n");
     if (targetLine >= lines.length)
       return;
-    let newLine = `${def.name}:${def.filled}/${def.total}`;
-    if (def.color)
-      newLine += `:${def.color}`;
-    lines[targetLine] = newLine;
+    lines[targetLine] = serializeClock(def);
     await this.plugin.app.vault.modify(file, lines.join("\n"));
   }
   async writeAllClocks() {
@@ -324,12 +331,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     const lines = content.split("\n");
     const blockStart = info.lineStart + 1;
     const blockEnd = info.lineEnd;
-    const newLines = this.clockDefs.map((def) => {
-      let line = `${def.name}:${def.filled}/${def.total}`;
-      if (def.color)
-        line += `:${def.color}`;
-      return line;
-    });
+    const newLines = this.clockDefs.map(serializeClock);
     lines.splice(blockStart, blockEnd - blockStart, ...newLines);
     await this.plugin.app.vault.modify(file, lines.join("\n"));
   }
