@@ -107,14 +107,20 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     const widgetEl = clockEl.createDiv({ cls: "widget" });
     widgetEl.createDiv({ cls: "clock-drag-handle", text: "\u283F" });
     const deleteBtn = widgetEl.createEl("button", { cls: "clock-delete-btn", text: "\xD7" });
-    deleteBtn.addEventListener("click", () => {
+    deleteBtn.addEventListener("click", async () => {
       const idx = this.clockDefs.indexOf(def);
       if (idx === -1)
+        return;
+      const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath);
+      if (!file)
+        return;
+      const info = this.ctx.getSectionInfo(this.containerEl);
+      if (!info)
         return;
       this.clockDefs.splice(idx, 1);
       this.containerEl.empty();
       this.renderAll();
-      this.writeAllClocks();
+      await this.writeAllClocksWithInfo(file, info);
     });
     const coreEl = widgetEl.createDiv({ cls: "core" });
     this.buildSlices(coreEl, def.total, def.filled);
@@ -137,6 +143,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     totalInput.min = "1";
     totalInput.max = "24";
     totalInput.value = String(def.total);
+    totalInput.addEventListener("focus", () => totalInput.select());
     const incBtn = stepperEl.createEl("button", { cls: "clock-btn-inc", text: "+" });
     const nameInput = controlsEl.createEl("input", { cls: "clock-name" });
     nameInput.type = "text";
@@ -237,7 +244,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     addBtn.addEventListener("click", () => this.addClock());
   }
   async addClock() {
-    const file = this.plugin.app.workspace.getActiveFile();
+    const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath);
     if (!file)
       return;
     const info = this.ctx.getSectionInfo(this.containerEl);
@@ -286,7 +293,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
   }
   // ── Source writes ─────────────────────────────────────────────────────────
   async updateClockSource(def) {
-    const file = this.plugin.app.workspace.getActiveFile();
+    const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath);
     if (!file)
       return;
     const info = this.ctx.getSectionInfo(this.containerEl);
@@ -304,12 +311,15 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     await this.plugin.app.vault.modify(file, lines.join("\n"));
   }
   async writeAllClocks() {
-    const file = this.plugin.app.workspace.getActiveFile();
+    const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath);
     if (!file)
       return;
     const info = this.ctx.getSectionInfo(this.containerEl);
     if (!info)
       return;
+    await this.writeAllClocksWithInfo(file, info);
+  }
+  async writeAllClocksWithInfo(file, info) {
     const content = await this.plugin.app.vault.read(file);
     const lines = content.split("\n");
     const blockStart = info.lineStart + 1;

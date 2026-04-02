@@ -1,4 +1,4 @@
-import { MarkdownPostProcessorContext, MarkdownRenderChild } from "obsidian";
+import { MarkdownPostProcessorContext, MarkdownRenderChild, TFile } from "obsidian";
 import RpgClock from "./main";
 import { Color, RpgClockSettings } from "./settings";
 
@@ -109,13 +109,19 @@ export class Clock extends MarkdownRenderChild {
 
         // Delete button (top-right, visible on hover)
         const deleteBtn = widgetEl.createEl('button', { cls: 'clock-delete-btn', text: '×' });
-        deleteBtn.addEventListener('click', () => {
+        deleteBtn.addEventListener('click', async () => {
             const idx = this.clockDefs.indexOf(def);
             if (idx === -1) return;
+            // Capture section info BEFORE any DOM changes — getSectionInfo can
+            // return null after containerEl.empty() in some Obsidian versions.
+            const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath) as TFile;
+            if (!file) return;
+            const info = this.ctx.getSectionInfo(this.containerEl);
+            if (!info) return;
             this.clockDefs.splice(idx, 1);
             this.containerEl.empty();
             this.renderAll();
-            this.writeAllClocks();
+            await this.writeAllClocksWithInfo(file, info);
         });
 
         const coreEl = widgetEl.createDiv({ cls: 'core' });
@@ -145,6 +151,7 @@ export class Clock extends MarkdownRenderChild {
         totalInput.min = '1';
         totalInput.max = '24';
         totalInput.value = String(def.total);
+        totalInput.addEventListener('focus', () => totalInput.select());
         const incBtn = stepperEl.createEl('button', { cls: 'clock-btn-inc', text: '+' });
 
         // Name input
@@ -263,7 +270,7 @@ export class Clock extends MarkdownRenderChild {
     }
 
     private async addClock(): Promise<void> {
-        const file = this.plugin.app.workspace.getActiveFile();
+        const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath) as TFile;
         if (!file) return;
         const info = this.ctx.getSectionInfo(this.containerEl);
         if (!info) return;
@@ -312,7 +319,7 @@ export class Clock extends MarkdownRenderChild {
     // ── Source writes ─────────────────────────────────────────────────────────
 
     private async updateClockSource(def: ClockDef): Promise<void> {
-        const file = this.plugin.app.workspace.getActiveFile();
+        const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath) as TFile;
         if (!file) return;
         const info = this.ctx.getSectionInfo(this.containerEl);
         if (!info) return;
@@ -327,10 +334,14 @@ export class Clock extends MarkdownRenderChild {
     }
 
     private async writeAllClocks(): Promise<void> {
-        const file = this.plugin.app.workspace.getActiveFile();
+        const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath) as TFile;
         if (!file) return;
         const info = this.ctx.getSectionInfo(this.containerEl);
         if (!info) return;
+        await this.writeAllClocksWithInfo(file, info);
+    }
+
+    private async writeAllClocksWithInfo(file: TFile, info: { lineStart: number; lineEnd: number; text: string }): Promise<void> {
         const content = await this.plugin.app.vault.read(file);
         const lines = content.split('\n');
         const blockStart = info.lineStart + 1;
