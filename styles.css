@@ -17,28 +17,23 @@ If your plugin does not need CSS, delete this file.
     --color-clock-border: var(--color-dark);
 
     --clock-handle-size: 40px;
-    --clock-size: 150px;
+    --clock-size: 100px;
     --clock-disc-size: 80px;
     --scrollbar-thickness: 12px;
     --clock-border-thickness: 4px;
 
-    display: flex;
-    justify-content: space-evenly;
-    flex-wrap: wrap;
 }
 
 .clock {
     --angle: calc(360deg / var(--n));
     display: flex;
     flex-direction: column;
-    width: fit-content;
-
-    .description{
-        color: var(--clock-color);
-        display: flex;
-        justify-content: center;
-    }
+    align-items: center;
+    width: var(--clock-size);
+    box-sizing: border-box;
+    margin: 4px;
 }
+
 .clock[bad] {
     --clock-color: var(--color-red);
 }
@@ -47,6 +42,7 @@ If your plugin does not need CSS, delete this file.
     position: relative;
     height: var(--clock-size);
     width: var(--clock-size);
+    flex-shrink: 0;
 }
 .clock .core {
     position: absolute;
@@ -107,4 +103,195 @@ If your plugin does not need CSS, delete this file.
     height: 100%;
     width: 100%;
     background: var(--color-clock-border);
+}
+
+/* Drag & drop */
+
+.clock-drag-handle {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px;
+    color: var(--color-light);
+    cursor: grab;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 1;
+    pointer-events: none; /* drag is handled on the parent .clock */
+    user-select: none;
+}
+
+.clock:hover .clock-drag-handle {
+    opacity: 1;
+}
+
+.clock-dragging {
+    opacity: 0.4;
+}
+
+.clock-drag-over {
+    outline: 2px dashed var(--clock-color);
+    outline-offset: 4px;
+    border-radius: 6px;
+}
+
+/* Add clock button */
+
+.clock-add {
+    width: var(--clock-size);
+    height: var(--clock-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--color-light);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--color-light);
+    font-size: 2em;
+    box-sizing: border-box;
+    transition: border-color 0.15s, color 0.15s;
+    user-select: none;
+}
+
+.clock-add:hover {
+    border-color: var(--clock-color);
+    color: var(--clock-color);
+}
+
+/* Delete button on widget */
+
+.clock-delete-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    background: var(--color-mid);
+    color: var(--color-light);
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+}
+
+.clock:hover .clock-delete-btn {
+    opacity: 1;
+}
+
+.clock-delete-btn:hover {
+    color: var(--color-bright);
+    background: #c0392b;
+}
+
+/* Color picker button on widget */
+
+.clock-color-btn {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid var(--color-light);
+    padding: 0;
+    cursor: pointer;
+    background: none;
+    overflow: hidden;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.clock-color-btn:hover {
+    opacity: 1;
+}
+
+/* Controls */
+
+.clock-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 4px 0 2px;
+}
+
+.clock-stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.clock-btn-dec,
+.clock-btn-inc {
+    background: var(--color-mid);
+    color: var(--color-bright);
+    border: 1px solid var(--color-light);
+    border-radius: 3px;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    font-size: 1em;
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.clock-btn-dec:hover,
+.clock-btn-inc:hover {
+    background: var(--clock-color);
+}
+
+.clock-filled-val {
+    font-size: 0.8em;
+    color: var(--color-bright);
+    min-width: 14px;
+    text-align: center;
+}
+
+.clock-sep {
+    color: var(--color-light);
+    font-size: 0.8em;
+}
+
+.clock-total {
+    width: 36px;
+    text-align: center;
+    font-size: 0.8em;
+    background: var(--color-mid);
+    border: 1px solid var(--color-light);
+    border-radius: 3px;
+    color: var(--color-bright);
+    padding: 1px 2px;
+}
+
+.clock-total:focus {
+    outline: none;
+    border-color: var(--clock-color);
+}
+
+.clock-name {
+    width: 100%;
+    text-align: center;
+    font-size: 0.75em;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--clock-color);
+    color: var(--clock-color);
+    padding: 2px 4px;
+    box-sizing: border-box;
+}
+
+.clock-name:focus {
+    outline: none;
+    border-bottom-color: var(--color-bright);
+    color: var(--color-bright);
 }

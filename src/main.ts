@@ -16,41 +16,55 @@ export default class RpgClock extends Plugin {
 		this.registerMarkdownCodeBlockProcessor(
 			'clock',
 			async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
-				ctx.addChild(new Clock(this, this.settings, el, source.trim()));
+				ctx.addChild(new Clock(this, this.settings, el, source.trim(), ctx));
 			}
-		)
+		);
 
-		
 		this.addCommand({
 			id: 'insert-clock',
 			name: 'Insert Clock',
 			editorCallback: (editor: Editor) => {
-				new CommandInput(this.app, (result) => {
-					console.log("aniuest");
-					try {
-						const codeBlock = `\`\`\`clock\n${result}:0/4\n\`\`\`\n`;
-						const cursor = editor.getCursor();
-						editor.transaction({
-							changes: [{ from: cursor, text: codeBlock }]
-						})
-						editor.setCursor({
-							line: cursor.line + codeBlock.split('\n').length,
-							ch: 0
-						})
-						new Notice(`Added ${result}`);
-					} 
-					catch (error) {
-						new Notice(error);
-					}
-				})
-				.open();
+				new CommandInput(this.app, (name, sections) => {
+					this.insertClockAtCursor(editor, name, sections);
+				}).open();
 			}
-	
-		})
+		});
+
+		this.registerEvent(
+			this.app.workspace.on('editor-menu', (menu, editor) => {
+				menu.addItem((item) => {
+					item
+						.setTitle('Insert Clock')
+						.setIcon('clock')
+						.onClick(() => {
+							new CommandInput(this.app, (name, sections) => {
+								this.insertClockAtCursor(editor, name, sections);
+							}).open();
+						});
+				});
+			})
+		);
 
 		this.addSettingTab(new SettingsTab(this.app, this));
 	}
-	
+
+	private insertClockAtCursor(editor: Editor, name: string, sections: number) {
+		try {
+			const codeBlock = `\`\`\`clock\n${name}:0/${sections}\n\`\`\`\n`;
+			const cursor = editor.getCursor();
+			editor.transaction({
+				changes: [{ from: cursor, text: codeBlock }]
+			});
+			editor.setCursor({
+				line: cursor.line + codeBlock.split('\n').length,
+				ch: 0
+			});
+			new Notice(`Added ${name}`);
+		} catch (error) {
+			new Notice(error);
+		}
+	}
+
 	async loadSettings() {
 		this.settings = Object.assign({}, DefaultSettings, await this.loadData());
 	}

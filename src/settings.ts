@@ -8,59 +8,55 @@ type HEX = `#${string}`;
 export type Color = RGB | RGBA | HEX;
 
 export interface RpgClockSettings {
-    clockSize: number;
-    clockColor: Color
+  clockSize: number;
+  clockColor: Color;
 }
 
 export const DefaultSettings: RpgClockSettings = {
-    clockSize: 150,
-    clockColor: '#ff5757',
-}
+  clockSize: 150,
+  clockColor: "#ff5757",
+};
 
 export class SettingsTab extends PluginSettingTab {
-    plugin: RpgClock;
+  plugin: RpgClock;
 
-    constructor(app: App, plugin: RpgClock){
-        super(app, plugin);
-        this.plugin = plugin;
+  constructor(app: App, plugin: RpgClock) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display() {
+    const { containerEl } = this;
+    let { settings } = this.plugin;
+
+    containerEl.empty();
+
+    new Setting(containerEl)
+      .setName("Clock Size")
+      .setDesc("How big the clock will be.")
+      .addText((text) => {
+        text.setValue(settings.clockSize.toString()).onChange(async (value) => {
+          settings.clockSize = Number(value);
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Clock Color")
+      .setDesc("Default clock color on creation.")
+      .addColorPicker((colorPicker) => {
+        colorPicker.setValue(settings.clockColor).onChange(async (value) => {
+          settings.clockColor = value as Color;
+          await this.plugin.saveSettings();
+        });
+      });
+  }
+
+  hide() {
+    if (this.plugin?.clocks) {
+      for (let palette of this.plugin.clocks) {
+        palette.refresh();
+      }
     }
-
-    display() {
-        const { containerEl } = this;
-        let { settings } = this.plugin;
-        
-        containerEl.empty();
-        
-        new Setting(containerEl)
-            .setName('Clock Size')
-            .setDesc('How big the clock should be')
-            .addText((text) => {
-                text
-                    .setValue(settings.clockSize.toString())
-                    .onChange(async (value) => {
-                        settings.clockSize = Number(value);
-                        await this.plugin.saveSettings();
-                    })
-                })
-
-        new Setting(containerEl)
-            .setName('Clock Color')
-            .setDesc('Which color should be the clock')
-            .addColorPicker((colorPicker) => {
-                colorPicker
-                    .setValue(settings.clockColor)
-                    .onChange(async (value) => {
-                        settings.clockColor = value as Color;
-                        await this.plugin.saveSettings();
-                    })
-            })
-    }
-
-    hide() {
-        if(this.plugin?.clocks){
-            for(let palette of this.plugin.clocks){
-                palette.refresh();
-            }
-        }
-    }
+  }
 }

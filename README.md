@@ -29,16 +29,5 @@ Items found:3/4
 
 
 
-## WIP
-
-
-- use mouse to interact with clocks:
-  - click in an empty slice to fill up to it
-  - click on a filled slice to unfill it
-  - shift click on the clock to add more total slices
-  - shift right click on the clock to remove total slices
-
-
-
 > - Thanks to [obsidian-sample-plugin](https://github.com/obsidianmd/obsidian-sample-plugin) for providing the base template
 > - Thanks to [u/Seeonee](https://www.reddit.com/user/Seeonee/) who made https://rp.meromorph.com/blades/ for inspiration and design

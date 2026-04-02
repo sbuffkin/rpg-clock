@@ -33,73 +33,295 @@ var import_obsidian4 = require("obsidian");
 // src/clock.ts
 var import_obsidian = require("obsidian");
 var Clock = class extends import_obsidian.MarkdownRenderChild {
-  constructor(plugin, settings, containerEl, input) {
+  constructor(plugin, settings, containerEl, input, ctx) {
     super(containerEl);
     this.plugin = plugin;
     this.settings = settings;
     this.input = input;
-    this.clocks = [];
+    this.ctx = ctx;
+    this.clockDefs = this.parseInput(input);
+  }
+  parseInput(input) {
+    const defs = [];
+    input.split("\n").forEach((line, lineOffset) => {
+      if (!line.trim())
+        return;
+      const parts = line.split(":");
+      let name, value, color;
+      if (parts.length === 1) {
+        name = "";
+        value = parts[0];
+      } else if (parts.length === 2) {
+        [name, value] = parts;
+      } else {
+        name = parts[0];
+        value = parts[1];
+        color = parts.slice(2).join(":");
+      }
+      const [filled, total] = value.split("/").map(Number);
+      if (isNaN(filled) || isNaN(total))
+        return;
+      defs.push({ name, filled, total, color, lineOffset });
+    });
+    return defs;
   }
   onload() {
-    console.log("onload: clean");
     this.containerEl.innerHTML = "";
-    this.clocks = this.input.split("\n");
-    this.clocks.forEach((clock) => {
-      const [clockName, clockValue, clockColor] = clock.split(":");
-      const [filled, total] = clockValue ? clockValue.split("/") : clockName.split("/");
-      this.createClock(clockValue ? clockName : "", parseInt(filled, 10), parseInt(total, 10), clockColor);
-    });
+    this.renderAll();
   }
   unload() {
     var _a;
-    if (this.clocks[0] !== "Invalid Clock") {
+    if (this.clockDefs.length > 0) {
       (_a = this.plugin.clocks) == null ? void 0 : _a.remove(this);
     }
   }
   refresh() {
+    this.clockDefs = this.parseInput(this.input);
     this.containerEl.empty();
-    console.log("refresh");
+    this.renderAll();
   }
-  /**
-   * Add a new clock to html element
-   * @param clockName 
-   * @param filled 
-   * @param totalCount 
-   */
-  createClock(clockName, filled, totalCount, color) {
-    let { clockColor } = this.settings;
-    if (color) {
-      clockColor = color;
+  renderAll() {
+    const n = this.clockDefs.length;
+    const cols = Math.ceil(Math.sqrt(n + 1));
+    this.containerEl.style.display = "grid";
+    this.containerEl.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+    this.containerEl.style.gap = "8px";
+    this.containerEl.style.justifyContent = "start";
+    this.containerEl.style.alignItems = "start";
+    const clockEls = [];
+    for (const def of this.clockDefs) {
+      clockEls.push(this.renderClock(this.containerEl, def));
     }
-    console.log("Create clock: ", clockName, `${filled}/${totalCount}`);
-    this.containerEl.innerHTML += `<div class="clock" n="${totalCount}" style="--n: ${totalCount}; --clock-color:${clockColor}">
-        <div class="description">${clockName}</div>
-            <div class="widget">
-                <div class="core">
-                    ${this._slices(totalCount, filled)}
-                    ${this._bars(totalCount)}
-                </div>
-            </div>
-        </div>`;
+    clockEls.forEach((el, i) => this.setupDrag(el, i, clockEls));
+    this.renderAddButton(this.containerEl);
   }
-  /**
-   * Generate slices
-   * @param count 
-   * @param filled 
-   * @returns 
-   */
-  _slices(count, filled) {
-    return new Array(count).fill(0).reduce((a, _, i) => [...a, `<div class="slice" i="${i}" ${filled <= i ? "" : "filled"} style="--i: ${i};"></div>`], []).join("\n");
+  renderClock(container, def) {
+    var _a;
+    const color = def.color || this.settings.clockColor;
+    const size = (_a = this.settings.clockSize) != null ? _a : 100;
+    const clockEl = container.createDiv({ cls: "clock" });
+    clockEl.setAttribute("n", String(def.total));
+    clockEl.style.setProperty("--n", String(def.total));
+    clockEl.style.setProperty("--clock-color", color);
+    clockEl.style.setProperty("--clock-size", `${size}px`);
+    const widgetEl = clockEl.createDiv({ cls: "widget" });
+    widgetEl.createDiv({ cls: "clock-drag-handle", text: "\u283F" });
+    const deleteBtn = widgetEl.createEl("button", { cls: "clock-delete-btn", text: "\xD7" });
+    deleteBtn.addEventListener("click", () => {
+      const idx = this.clockDefs.indexOf(def);
+      if (idx === -1)
+        return;
+      this.clockDefs.splice(idx, 1);
+      this.containerEl.empty();
+      this.renderAll();
+      this.writeAllClocks();
+    });
+    const coreEl = widgetEl.createDiv({ cls: "core" });
+    this.buildSlices(coreEl, def.total, def.filled);
+    this.buildBars(coreEl, def.total);
+    const colorInput = widgetEl.createEl("input", { cls: "clock-color-btn" });
+    colorInput.type = "color";
+    colorInput.value = this.toHex(color);
+    colorInput.addEventListener("change", () => {
+      def.color = colorInput.value;
+      clockEl.style.setProperty("--clock-color", def.color);
+      this.updateClockSource(def);
+    });
+    const controlsEl = clockEl.createDiv({ cls: "clock-controls" });
+    const stepperEl = controlsEl.createDiv({ cls: "clock-stepper" });
+    const decBtn = stepperEl.createEl("button", { cls: "clock-btn-dec", text: "-" });
+    const filledVal = stepperEl.createEl("span", { cls: "clock-filled-val", text: String(def.filled) });
+    stepperEl.createEl("span", { cls: "clock-sep", text: "/" });
+    const totalInput = stepperEl.createEl("input", { cls: "clock-total" });
+    totalInput.type = "number";
+    totalInput.min = "1";
+    totalInput.max = "24";
+    totalInput.value = String(def.total);
+    const incBtn = stepperEl.createEl("button", { cls: "clock-btn-inc", text: "+" });
+    const nameInput = controlsEl.createEl("input", { cls: "clock-name" });
+    nameInput.type = "text";
+    nameInput.value = def.name;
+    nameInput.placeholder = "Clock name";
+    decBtn.addEventListener("click", () => {
+      if (def.filled <= 0)
+        return;
+      def.filled--;
+      filledVal.textContent = String(def.filled);
+      this.updateFilledDOM(clockEl, def.filled);
+      this.updateClockSource(def);
+    });
+    incBtn.addEventListener("click", () => {
+      if (def.filled >= def.total)
+        return;
+      def.filled++;
+      filledVal.textContent = String(def.filled);
+      this.updateFilledDOM(clockEl, def.filled);
+      this.updateClockSource(def);
+    });
+    totalInput.addEventListener("change", () => {
+      const newTotal = parseInt(totalInput.value);
+      if (isNaN(newTotal) || newTotal < 1)
+        return;
+      def.total = newTotal;
+      def.filled = Math.min(def.filled, def.total);
+      filledVal.textContent = String(def.filled);
+      clockEl.setAttribute("n", String(def.total));
+      clockEl.style.setProperty("--n", String(def.total));
+      coreEl.empty();
+      this.buildSlices(coreEl, def.total, def.filled);
+      this.buildBars(coreEl, def.total);
+      this.updateClockSource(def);
+    });
+    nameInput.addEventListener("input", () => {
+      nameInput.value = nameInput.value.replace(/:/g, "");
+    });
+    const applyRename = () => {
+      def.name = nameInput.value;
+      this.updateClockSource(def);
+    };
+    nameInput.addEventListener("blur", applyRename);
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter")
+        nameInput.blur();
+    });
+    return clockEl;
   }
-  /**
-   * Generate Bars
-   * @param count 
-   * @returns 
-   */
-  _bars(count) {
-    return new Array(count).fill(0).reduce((a, _, i) => [...a, ` <div class="bar" i="${i}" style="--i: ${i};">
-                                            <div class="paint"></div>
-                                        </div>`], []).join("\n");
+  // ── Drag & drop ──────────────────────────────────────────────────────────
+  setupDrag(clockEl, index, allClockEls) {
+    clockEl.draggable = true;
+    clockEl.addEventListener("dragstart", (e) => {
+      const target = e.target;
+      if (target.closest("input, button")) {
+        e.preventDefault();
+        return;
+      }
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(index));
+      setTimeout(() => clockEl.addClass("clock-dragging"), 0);
+    });
+    clockEl.addEventListener("dragend", () => {
+      clockEl.removeClass("clock-dragging");
+      allClockEls.forEach((el) => el.removeClass("clock-drag-over"));
+    });
+    clockEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      allClockEls.forEach((el) => el.removeClass("clock-drag-over"));
+      clockEl.addClass("clock-drag-over");
+    });
+    clockEl.addEventListener("dragleave", (e) => {
+      if (!clockEl.contains(e.relatedTarget)) {
+        clockEl.removeClass("clock-drag-over");
+      }
+    });
+    clockEl.addEventListener("drop", (e) => {
+      e.preventDefault();
+      clockEl.removeClass("clock-drag-over");
+      const fromIndex = parseInt(e.dataTransfer.getData("text/plain"));
+      if (isNaN(fromIndex) || fromIndex === index)
+        return;
+      const [moved] = this.clockDefs.splice(fromIndex, 1);
+      this.clockDefs.splice(index, 0, moved);
+      this.containerEl.empty();
+      this.renderAll();
+      this.writeAllClocks();
+    });
+  }
+  // ── Add clock ─────────────────────────────────────────────────────────────
+  renderAddButton(container) {
+    var _a;
+    const size = (_a = this.settings.clockSize) != null ? _a : 100;
+    const addBtn = container.createDiv({ cls: "clock-add" });
+    addBtn.style.setProperty("--clock-size", `${size}px`);
+    addBtn.createEl("span", { text: "+" });
+    addBtn.addEventListener("click", () => this.addClock());
+  }
+  async addClock() {
+    const file = this.plugin.app.workspace.getActiveFile();
+    if (!file)
+      return;
+    const info = this.ctx.getSectionInfo(this.containerEl);
+    if (!info)
+      return;
+    const content = await this.plugin.app.vault.read(file);
+    const lines = content.split("\n");
+    lines.splice(info.lineEnd, 0, "New Clock:0/4");
+    await this.plugin.app.vault.modify(file, lines.join("\n"));
+  }
+  // ── DOM helpers ───────────────────────────────────────────────────────────
+  buildSlices(coreEl, total, filled) {
+    for (let i = 0; i < total; i++) {
+      const slice = coreEl.createDiv({ cls: "slice" });
+      slice.setAttribute("i", String(i));
+      slice.style.setProperty("--i", String(i));
+      if (i < filled)
+        slice.setAttribute("filled", "");
+    }
+  }
+  buildBars(coreEl, total) {
+    for (let i = 0; i < total; i++) {
+      const bar = coreEl.createDiv({ cls: "bar" });
+      bar.setAttribute("i", String(i));
+      bar.style.setProperty("--i", String(i));
+      bar.createDiv({ cls: "paint" });
+    }
+  }
+  updateFilledDOM(clockEl, filled) {
+    clockEl.querySelectorAll(".slice").forEach((slice, i) => {
+      if (i < filled)
+        slice.setAttribute("filled", "");
+      else
+        slice.removeAttribute("filled");
+    });
+  }
+  /** Convert any CSS color string to #rrggbb for <input type="color"> */
+  toHex(color) {
+    if (/^#[0-9a-fA-F]{6}$/.test(color))
+      return color;
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx)
+      return "#ff5757";
+    ctx.fillStyle = color;
+    return ctx.fillStyle;
+  }
+  // ── Source writes ─────────────────────────────────────────────────────────
+  async updateClockSource(def) {
+    const file = this.plugin.app.workspace.getActiveFile();
+    if (!file)
+      return;
+    const info = this.ctx.getSectionInfo(this.containerEl);
+    if (!info)
+      return;
+    const targetLine = info.lineStart + 1 + def.lineOffset;
+    const content = await this.plugin.app.vault.read(file);
+    const lines = content.split("\n");
+    if (targetLine >= lines.length)
+      return;
+    let newLine = `${def.name}:${def.filled}/${def.total}`;
+    if (def.color)
+      newLine += `:${def.color}`;
+    lines[targetLine] = newLine;
+    await this.plugin.app.vault.modify(file, lines.join("\n"));
+  }
+  async writeAllClocks() {
+    const file = this.plugin.app.workspace.getActiveFile();
+    if (!file)
+      return;
+    const info = this.ctx.getSectionInfo(this.containerEl);
+    if (!info)
+      return;
+    const content = await this.plugin.app.vault.read(file);
+    const lines = content.split("\n");
+    const blockStart = info.lineStart + 1;
+    const blockEnd = info.lineEnd;
+    const newLines = this.clockDefs.map((def) => {
+      let line = `${def.name}:${def.filled}/${def.total}`;
+      if (def.color)
+        line += `:${def.color}`;
+      return line;
+    });
+    lines.splice(blockStart, blockEnd - blockStart, ...newLines);
+    await this.plugin.app.vault.modify(file, lines.join("\n"));
   }
 };
 
@@ -118,13 +340,13 @@ var SettingsTab = class extends import_obsidian2.PluginSettingTab {
     const { containerEl } = this;
     let { settings } = this.plugin;
     containerEl.empty();
-    new import_obsidian2.Setting(containerEl).setName("Clock Size").setDesc("How big the clock should be").addText((text) => {
+    new import_obsidian2.Setting(containerEl).setName("Clock Size").setDesc("How big the clock will be.").addText((text) => {
       text.setValue(settings.clockSize.toString()).onChange(async (value) => {
         settings.clockSize = Number(value);
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian2.Setting(containerEl).setName("Clock Color").setDesc("Which color should be the clock").addColorPicker((colorPicker) => {
+    new import_obsidian2.Setting(containerEl).setName("Clock Color").setDesc("Default clock color on creation.").addColorPicker((colorPicker) => {
       colorPicker.setValue(settings.clockColor).onChange(async (value) => {
         settings.clockColor = value;
         await this.plugin.saveSettings();
@@ -146,26 +368,49 @@ var import_obsidian3 = require("obsidian");
 var CommandInput = class extends import_obsidian3.Modal {
   constructor(app, onSubmit) {
     super(app);
+    this.result = "";
+    this.sections = 4;
     this.onSubmit = onSubmit;
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h1", { text: "Clock name" });
-    new import_obsidian3.Setting(contentEl).setName("name").addText((text) => {
+    contentEl.createEl("h1", { text: "New Clock" });
+    new import_obsidian3.Setting(contentEl).setName("Name").addText((text) => {
       text.onChange((value) => {
         this.result = value;
       });
+      text.inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          this.onSubmit(this.result, this.sections);
+          this.close();
+        }
+      });
+      setTimeout(() => text.inputEl.focus(), 10);
+    });
+    new import_obsidian3.Setting(contentEl).setName("Sections").addText((text) => {
+      text.setValue("4");
+      text.inputEl.type = "number";
+      text.inputEl.min = "1";
+      text.inputEl.max = "24";
+      text.onChange((v) => {
+        this.sections = parseInt(v) || 4;
+      });
+      text.inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          this.onSubmit(this.result, this.sections);
+          this.close();
+        }
+      });
     });
     new import_obsidian3.Setting(contentEl).addButton(
-      (btn) => btn.setButtonText("enter").setCta().onClick(() => {
+      (btn) => btn.setButtonText("Create").setCta().onClick(() => {
+        this.onSubmit(this.result, this.sections);
         this.close();
-        this.onSubmit(this.result);
       })
     );
   }
   onClose() {
-    let { contentEl } = this;
-    contentEl.empty();
+    this.contentEl.empty();
   }
 };
 
@@ -178,36 +423,49 @@ var RpgClock = class extends import_obsidian4.Plugin {
     this.registerMarkdownCodeBlockProcessor(
       "clock",
       async (source, el, ctx) => {
-        ctx.addChild(new Clock(this, this.settings, el, source.trim()));
+        ctx.addChild(new Clock(this, this.settings, el, source.trim(), ctx));
       }
     );
     this.addCommand({
       id: "insert-clock",
       name: "Insert Clock",
       editorCallback: (editor) => {
-        new CommandInput(this.app, (result) => {
-          console.log("aniuest");
-          try {
-            const codeBlock = `\`\`\`clock
-${result}:0/4
-\`\`\`
-`;
-            const cursor = editor.getCursor();
-            editor.transaction({
-              changes: [{ from: cursor, text: codeBlock }]
-            });
-            editor.setCursor({
-              line: cursor.line + codeBlock.split("\n").length,
-              ch: 0
-            });
-            new import_obsidian4.Notice(`Added ${result}`);
-          } catch (error) {
-            new import_obsidian4.Notice(error);
-          }
+        new CommandInput(this.app, (name, sections) => {
+          this.insertClockAtCursor(editor, name, sections);
         }).open();
       }
     });
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor) => {
+        menu.addItem((item) => {
+          item.setTitle("Insert Clock").setIcon("clock").onClick(() => {
+            new CommandInput(this.app, (name, sections) => {
+              this.insertClockAtCursor(editor, name, sections);
+            }).open();
+          });
+        });
+      })
+    );
     this.addSettingTab(new SettingsTab(this.app, this));
+  }
+  insertClockAtCursor(editor, name, sections) {
+    try {
+      const codeBlock = `\`\`\`clock
+${name}:0/${sections}
+\`\`\`
+`;
+      const cursor = editor.getCursor();
+      editor.transaction({
+        changes: [{ from: cursor, text: codeBlock }]
+      });
+      editor.setCursor({
+        line: cursor.line + codeBlock.split("\n").length,
+        ch: 0
+      });
+      new import_obsidian4.Notice(`Added ${name}`);
+    } catch (error) {
+      new import_obsidian4.Notice(error);
+    }
   }
   async loadSettings() {
     this.settings = Object.assign({}, DefaultSettings, await this.loadData());
