@@ -6,7 +6,7 @@ If your plugin does not need CSS, delete this file.
 */
 
 .block-language-clock {
-    --clock-color:var(--color-red);
+    --clock-color: var(--color-red);
     --color-red: #ff5757;
     --color-dark: #020308;
     --color-mid: #101116;
@@ -21,7 +21,6 @@ If your plugin does not need CSS, delete this file.
     --clock-disc-size: 80px;
     --scrollbar-thickness: 12px;
     --clock-border-thickness: 4px;
-
 }
 
 .clock {
@@ -62,7 +61,8 @@ If your plugin does not need CSS, delete this file.
     width: calc(50% + var(--o));
     background: var(--color-light);
     transform-origin: bottom left;
-    transform: rotate(calc(var(--i) * var(--angle))) skewY(calc(-90deg + var(--angle)));
+    transform: rotate(calc(var(--i) * var(--angle)))
+        skewY(calc(-90deg + var(--angle)));
     cursor: pointer;
 }
 .clock .slice[filled] {
@@ -150,7 +150,9 @@ If your plugin does not need CSS, delete this file.
     color: var(--color-light);
     font-size: 2em;
     box-sizing: border-box;
-    transition: border-color 0.15s, color 0.15s;
+    transition:
+        border-color 0.15s,
+        color 0.15s;
     user-select: none;
 }
 
@@ -179,7 +181,11 @@ If your plugin does not need CSS, delete this file.
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.15s, color 0.15s;
+    transition:
+        opacity 0.15s,
+        color 0.15s;
+    z-index: 1;
+    size: 1em;
 }
 
 .clock:hover .clock-delete-btn {
