@@ -329,22 +329,51 @@ If your plugin does not need CSS, delete this file.
     border-color: var(--clock-color);
 }
 
-.clock-name {
+.clock-name-display {
     width: 100%;
     text-align: center;
-    font-size: 0.75em;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--clock-color);
+    font-size: 0.8em;
+    font-weight: 600;
     color: var(--clock-color);
     padding: 2px 4px;
     box-sizing: border-box;
+    word-break: break-word;
+    cursor: text;
+    line-height: 1.3;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s;
 }
 
-.clock-name:focus {
-    outline: none;
-    border-bottom-color: var(--color-bright);
+.clock-name-display--placeholder {
+    color: var(--color-light);
+    font-weight: 400;
+    font-style: italic;
+}
+
+.clock-name-display:hover {
+    border-bottom-color: var(--color-light);
+}
+
+.clock-name-display--hidden {
+    display: none;
+}
+
+.clock-name {
+    width: 100%;
+    text-align: center;
+    font-size: 0.8em;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--clock-color);
     color: var(--color-bright);
+    padding: 2px 4px;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.clock-name--hidden {
+    display: none;
 }
 
 /* Per-clock palette swatches */

@@ -78,10 +78,9 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     if (this.plugin.pendingFocusLast) {
       this.plugin.pendingFocusLast = false;
       setTimeout(() => {
-        const nameInputs = this.containerEl.querySelectorAll(".clock-name");
-        const last = nameInputs[nameInputs.length - 1];
-        last == null ? void 0 : last.focus();
-        last == null ? void 0 : last.select();
+        var _a;
+        const displays = this.containerEl.querySelectorAll(".clock-name-display");
+        (_a = displays[displays.length - 1]) == null ? void 0 : _a.click();
       }, 0);
     }
   }
@@ -168,11 +167,39 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     colorBtn.addEventListener("click", () => {
       swatchRow.toggleClass("clock-palette--hidden", !swatchRow.hasClass("clock-palette--hidden"));
     });
-    const nameInput = controlsEl.createEl("input", { cls: "clock-name" });
+    const nameDisplay = controlsEl.createEl("div", { cls: "clock-name-display" });
+    nameDisplay.textContent = def.name || "Clock name";
+    if (!def.name) nameDisplay.addClass("clock-name-display--placeholder");
+    const nameInput = controlsEl.createEl("input", { cls: "clock-name clock-name--hidden" });
     nameInput.type = "text";
     nameInput.value = def.name;
     nameInput.placeholder = "Clock name";
-    nameInput.addEventListener("focus", () => nameInput.select());
+    const enterEditMode = () => {
+      nameDisplay.addClass("clock-name-display--hidden");
+      nameInput.removeClass("clock-name--hidden");
+      nameInput.focus();
+      nameInput.select();
+    };
+    const exitEditMode = () => {
+      def.name = nameInput.value;
+      nameDisplay.textContent = def.name || "Clock name";
+      nameDisplay.toggleClass("clock-name-display--placeholder", !def.name);
+      nameInput.addClass("clock-name--hidden");
+      nameDisplay.removeClass("clock-name-display--hidden");
+      this.updateClockSource(def);
+    };
+    nameDisplay.addEventListener("click", enterEditMode);
+    nameInput.addEventListener("blur", exitEditMode);
+    nameInput.addEventListener("input", () => {
+      nameInput.value = nameInput.value.replace(/:/g, "");
+    });
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") nameInput.blur();
+      if (e.key === "Escape") {
+        nameInput.value = def.name;
+        nameInput.blur();
+      }
+    });
     decBtn.addEventListener("click", () => {
       if (def.filled <= 0) return;
       def.filled--;
@@ -199,17 +226,6 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
       this.buildSlices(coreEl, def.total, def.filled);
       this.buildBars(coreEl, def.total);
       this.updateClockSource(def);
-    });
-    nameInput.addEventListener("input", () => {
-      nameInput.value = nameInput.value.replace(/:/g, "");
-    });
-    const applyRename = () => {
-      def.name = nameInput.value;
-      this.updateClockSource(def);
-    };
-    nameInput.addEventListener("blur", applyRename);
-    nameInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") nameInput.blur();
     });
     return clockEl;
   }

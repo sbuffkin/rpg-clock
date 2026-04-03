@@ -31,10 +31,8 @@ export class Clock extends MarkdownRenderChild {
         if (this.plugin.pendingFocusLast) {
             this.plugin.pendingFocusLast = false;
             setTimeout(() => {
-                const nameInputs = this.containerEl.querySelectorAll<HTMLInputElement>('.clock-name');
-                const last = nameInputs[nameInputs.length - 1];
-                last?.focus();
-                last?.select();
+                const displays = this.containerEl.querySelectorAll<HTMLElement>('.clock-name-display');
+                displays[displays.length - 1]?.click();
             }, 0);
         }
     }
@@ -145,12 +143,44 @@ export class Clock extends MarkdownRenderChild {
             swatchRow.toggleClass('clock-palette--hidden', !swatchRow.hasClass('clock-palette--hidden'));
         });
 
-        // Name input
-        const nameInput = controlsEl.createEl('input', { cls: 'clock-name' });
+        // Name — display label + hidden input, swap on click/blur
+        const nameDisplay = controlsEl.createEl('div', { cls: 'clock-name-display' });
+        nameDisplay.textContent = def.name || 'Clock name';
+        if (!def.name) nameDisplay.addClass('clock-name-display--placeholder');
+
+        const nameInput = controlsEl.createEl('input', { cls: 'clock-name clock-name--hidden' });
         nameInput.type = 'text';
         nameInput.value = def.name;
         nameInput.placeholder = 'Clock name';
-        nameInput.addEventListener('focus', () => nameInput.select());
+
+        const enterEditMode = () => {
+            nameDisplay.addClass('clock-name-display--hidden');
+            nameInput.removeClass('clock-name--hidden');
+            nameInput.focus();
+            nameInput.select();
+        };
+
+        const exitEditMode = () => {
+            def.name = nameInput.value;
+            nameDisplay.textContent = def.name || 'Clock name';
+            nameDisplay.toggleClass('clock-name-display--placeholder', !def.name);
+            nameInput.addClass('clock-name--hidden');
+            nameDisplay.removeClass('clock-name-display--hidden');
+            this.updateClockSource(def);
+        };
+
+        nameDisplay.addEventListener('click', enterEditMode);
+        nameInput.addEventListener('blur', exitEditMode);
+        nameInput.addEventListener('input', () => {
+            nameInput.value = nameInput.value.replace(/:/g, '');
+        });
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') nameInput.blur();
+            if (e.key === 'Escape') {
+                nameInput.value = def.name;
+                nameInput.blur();
+            }
+        });
 
         // Decrement filled
         decBtn.addEventListener('click', () => {
@@ -183,19 +213,6 @@ export class Clock extends MarkdownRenderChild {
             this.buildSlices(coreEl, def.total, def.filled);
             this.buildBars(coreEl, def.total);
             this.updateClockSource(def);
-        });
-
-        // Rename
-        nameInput.addEventListener('input', () => {
-            nameInput.value = nameInput.value.replace(/:/g, '');
-        });
-        const applyRename = () => {
-            def.name = nameInput.value;
-            this.updateClockSource(def);
-        };
-        nameInput.addEventListener('blur', applyRename);
-        nameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') nameInput.blur();
         });
 
         return clockEl;
