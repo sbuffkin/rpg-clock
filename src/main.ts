@@ -1,13 +1,14 @@
 import { Editor, MarkdownPostProcessorContext, Notice, Plugin } from 'obsidian'
-import { Clock } from 'src/clock';
-import { RpgClockSettings, DefaultSettings, SettingsTab } from 'src/settings';
+import { Clock } from './clock';
+import { RpgClockSettings, DefaultSettings, SettingsTab } from './settings';
 import { CommandInput } from './commandInput';
 
 export const urlRegex = /\/([^\/]+)\/?$/
 
 export default class RpgClock extends Plugin {
-	settings: RpgClockSettings;
+	settings!: RpgClockSettings;
 	clocks?: Clock[];
+	pendingFocusLast = false;
 
 	async onload() {
 		this.clocks = [];
@@ -61,7 +62,7 @@ export default class RpgClock extends Plugin {
 			});
 			new Notice(`Added ${name}`);
 		} catch (error) {
-			new Notice(error);
+			new Notice(String(error));
 		}
 	}
 

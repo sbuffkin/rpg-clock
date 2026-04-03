@@ -37,8 +37,7 @@ var import_obsidian = require("obsidian");
 function parseClocks(input) {
   const defs = [];
   input.split("\n").forEach((line, lineOffset) => {
-    if (!line.trim())
-      return;
+    if (!line.trim()) return;
     const parts = line.split(":");
     let name, value, color;
     if (parts.length === 1) {
@@ -52,16 +51,14 @@ function parseClocks(input) {
       color = parts.slice(2).join(":");
     }
     const [filled, total] = value.split("/").map(Number);
-    if (isNaN(filled) || isNaN(total))
-      return;
+    if (isNaN(filled) || isNaN(total)) return;
     defs.push({ name, filled, total, color, lineOffset });
   });
   return defs;
 }
 function serializeClock(def) {
   let line = `${def.name}:${def.filled}/${def.total}`;
-  if (def.color)
-    line += `:${def.color}`;
+  if (def.color) line += `:${def.color}`;
   return line;
 }
 
@@ -78,6 +75,15 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
   onload() {
     this.containerEl.innerHTML = "";
     this.renderAll();
+    if (this.plugin.pendingFocusLast) {
+      this.plugin.pendingFocusLast = false;
+      setTimeout(() => {
+        const nameInputs = this.containerEl.querySelectorAll(".clock-name");
+        const last = nameInputs[nameInputs.length - 1];
+        last == null ? void 0 : last.focus();
+        last == null ? void 0 : last.select();
+      }, 0);
+    }
   }
   unload() {
     var _a;
@@ -91,12 +97,11 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     this.renderAll();
   }
   renderAll() {
-    const n = this.clockDefs.length;
-    const cols = Math.ceil(Math.sqrt(n + 1));
+    var _a;
+    const size = (_a = this.settings.clockSize) != null ? _a : 100;
     this.containerEl.style.display = "grid";
-    this.containerEl.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+    this.containerEl.style.gridTemplateColumns = `repeat(auto-fill, minmax(${size + 40}px, 1fr))`;
     this.containerEl.style.gap = "8px";
-    this.containerEl.style.justifyContent = "start";
     this.containerEl.style.alignItems = "start";
     const clockEls = [];
     for (const def of this.clockDefs) {
@@ -106,7 +111,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     this.renderAddButton(this.containerEl);
   }
   renderClock(container, def) {
-    var _a;
+    var _a, _b;
     const color = def.color || this.settings.clockColor;
     const size = (_a = this.settings.clockSize) != null ? _a : 100;
     const clockEl = container.createDiv({ cls: "clock" });
@@ -119,14 +124,11 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     const deleteBtn = widgetEl.createEl("button", { cls: "clock-delete-btn", text: "\xD7" });
     deleteBtn.addEventListener("click", async () => {
       const idx = this.clockDefs.indexOf(def);
-      if (idx === -1)
-        return;
+      if (idx === -1) return;
       const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath);
-      if (!file)
-        return;
+      if (!file) return;
       const info = this.ctx.getSectionInfo(this.containerEl);
-      if (!info)
-        return;
+      if (!info) return;
       this.clockDefs.splice(idx, 1);
       this.containerEl.empty();
       this.renderAll();
@@ -135,14 +137,8 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     const coreEl = widgetEl.createDiv({ cls: "core" });
     this.buildSlices(coreEl, def.total, def.filled);
     this.buildBars(coreEl, def.total);
-    const colorInput = widgetEl.createEl("input", { cls: "clock-color-btn" });
-    colorInput.type = "color";
-    colorInput.value = this.toHex(color);
-    colorInput.addEventListener("change", () => {
-      def.color = colorInput.value;
-      clockEl.style.setProperty("--clock-color", def.color);
-      this.updateClockSource(def);
-    });
+    const colorBtn = widgetEl.createEl("button", { cls: "clock-color-btn" });
+    colorBtn.style.background = color;
     const controlsEl = clockEl.createDiv({ cls: "clock-controls" });
     const stepperEl = controlsEl.createDiv({ cls: "clock-stepper" });
     const decBtn = stepperEl.createEl("button", { cls: "clock-btn-dec", text: "-" });
@@ -155,21 +151,37 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     totalInput.value = String(def.total);
     totalInput.addEventListener("focus", () => totalInput.select());
     const incBtn = stepperEl.createEl("button", { cls: "clock-btn-inc", text: "+" });
+    const palette = (_b = this.settings.paletteColors) != null ? _b : [];
+    const swatchRow = controlsEl.createDiv({ cls: "clock-palette clock-palette--hidden" });
+    for (const paletteColor of palette) {
+      const swatch = swatchRow.createDiv({ cls: "clock-palette-swatch" });
+      swatch.style.background = paletteColor;
+      swatch.setAttribute("title", paletteColor);
+      swatch.addEventListener("click", () => {
+        def.color = paletteColor;
+        clockEl.style.setProperty("--clock-color", paletteColor);
+        colorBtn.style.background = paletteColor;
+        swatchRow.addClass("clock-palette--hidden");
+        this.updateClockSource(def);
+      });
+    }
+    colorBtn.addEventListener("click", () => {
+      swatchRow.toggleClass("clock-palette--hidden", !swatchRow.hasClass("clock-palette--hidden"));
+    });
     const nameInput = controlsEl.createEl("input", { cls: "clock-name" });
     nameInput.type = "text";
     nameInput.value = def.name;
     nameInput.placeholder = "Clock name";
+    nameInput.addEventListener("focus", () => nameInput.select());
     decBtn.addEventListener("click", () => {
-      if (def.filled <= 0)
-        return;
+      if (def.filled <= 0) return;
       def.filled--;
       filledVal.textContent = String(def.filled);
       this.updateFilledDOM(clockEl, def.filled);
       this.updateClockSource(def);
     });
     incBtn.addEventListener("click", () => {
-      if (def.filled >= def.total)
-        return;
+      if (def.filled >= def.total) return;
       def.filled++;
       filledVal.textContent = String(def.filled);
       this.updateFilledDOM(clockEl, def.filled);
@@ -177,8 +189,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     });
     totalInput.addEventListener("change", () => {
       const newTotal = parseInt(totalInput.value);
-      if (isNaN(newTotal) || newTotal < 1)
-        return;
+      if (isNaN(newTotal) || newTotal < 1) return;
       def.total = newTotal;
       def.filled = Math.min(def.filled, def.total);
       filledVal.textContent = String(def.filled);
@@ -198,8 +209,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     };
     nameInput.addEventListener("blur", applyRename);
     nameInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter")
-        nameInput.blur();
+      if (e.key === "Enter") nameInput.blur();
     });
     return clockEl;
   }
@@ -235,8 +245,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
       e.preventDefault();
       clockEl.removeClass("clock-drag-over");
       const fromIndex = parseInt(e.dataTransfer.getData("text/plain"));
-      if (isNaN(fromIndex) || fromIndex === index)
-        return;
+      if (isNaN(fromIndex) || fromIndex === index) return;
       const [moved] = this.clockDefs.splice(fromIndex, 1);
       this.clockDefs.splice(index, 0, moved);
       this.containerEl.empty();
@@ -250,20 +259,43 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     const size = (_a = this.settings.clockSize) != null ? _a : 100;
     const addBtn = container.createDiv({ cls: "clock-add" });
     addBtn.style.setProperty("--clock-size", `${size}px`);
-    addBtn.createEl("span", { text: "+" });
-    addBtn.addEventListener("click", () => this.addClock());
+    for (const sections of [4, 6, 8, 10]) {
+      const opt = addBtn.createEl("button", { cls: "clock-add-opt" });
+      opt.appendChild(this.buildClockPreviewSVG(sections));
+      opt.createEl("span", { cls: "clock-add-label", text: `+ ${sections}` });
+      opt.addEventListener("click", () => this.addClock(sections));
+    }
   }
-  async addClock() {
+  buildClockPreviewSVG(sections) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 40 40");
+    svg.setAttribute("class", "clock-add-preview");
+    const circle = document.createElementNS(ns, "circle");
+    circle.setAttribute("cx", "20");
+    circle.setAttribute("cy", "20");
+    circle.setAttribute("r", "17");
+    svg.appendChild(circle);
+    for (let i = 0; i < sections; i++) {
+      const angle = i / sections * 2 * Math.PI - Math.PI / 2;
+      const line = document.createElementNS(ns, "line");
+      line.setAttribute("x1", "20");
+      line.setAttribute("y1", "20");
+      line.setAttribute("x2", (20 + 17 * Math.cos(angle)).toFixed(2));
+      line.setAttribute("y2", (20 + 17 * Math.sin(angle)).toFixed(2));
+      svg.appendChild(line);
+    }
+    return svg;
+  }
+  async addClock(sections) {
     const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath);
-    if (!file)
-      return;
+    if (!file) return;
     const info = this.ctx.getSectionInfo(this.containerEl);
-    if (!info)
-      return;
-    const content = await this.plugin.app.vault.read(file);
-    const lines = content.split("\n");
-    lines.splice(info.lineEnd, 0, "New Clock:0/4");
-    await this.plugin.app.vault.modify(file, lines.join("\n"));
+    if (!info) return;
+    const newDef = { name: "New Clock", filled: 0, total: sections, lineOffset: this.clockDefs.length };
+    this.clockDefs.push(newDef);
+    this.plugin.pendingFocusLast = true;
+    await this.writeAllClocks();
   }
   // ── DOM helpers ───────────────────────────────────────────────────────────
   buildSlices(coreEl, total, filled) {
@@ -271,8 +303,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
       const slice = coreEl.createDiv({ cls: "slice" });
       slice.setAttribute("i", String(i));
       slice.style.setProperty("--i", String(i));
-      if (i < filled)
-        slice.setAttribute("filled", "");
+      if (i < filled) slice.setAttribute("filled", "");
     }
   }
   buildBars(coreEl, total) {
@@ -285,45 +316,36 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
   }
   updateFilledDOM(clockEl, filled) {
     clockEl.querySelectorAll(".slice").forEach((slice, i) => {
-      if (i < filled)
-        slice.setAttribute("filled", "");
-      else
-        slice.removeAttribute("filled");
+      if (i < filled) slice.setAttribute("filled", "");
+      else slice.removeAttribute("filled");
     });
   }
   /** Convert any CSS color string to #rrggbb for <input type="color"> */
   toHex(color) {
-    if (/^#[0-9a-fA-F]{6}$/.test(color))
-      return color;
+    if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
     const ctx = document.createElement("canvas").getContext("2d");
-    if (!ctx)
-      return "#ff5757";
+    if (!ctx) return "#ff5757";
     ctx.fillStyle = color;
     return ctx.fillStyle;
   }
   // ── Source writes ─────────────────────────────────────────────────────────
   async updateClockSource(def) {
     const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath);
-    if (!file)
-      return;
+    if (!file) return;
     const info = this.ctx.getSectionInfo(this.containerEl);
-    if (!info)
-      return;
+    if (!info) return;
     const targetLine = info.lineStart + 1 + def.lineOffset;
     const content = await this.plugin.app.vault.read(file);
     const lines = content.split("\n");
-    if (targetLine >= lines.length)
-      return;
+    if (targetLine >= lines.length) return;
     lines[targetLine] = serializeClock(def);
     await this.plugin.app.vault.modify(file, lines.join("\n"));
   }
   async writeAllClocks() {
     const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath);
-    if (!file)
-      return;
+    if (!file) return;
     const info = this.ctx.getSectionInfo(this.containerEl);
-    if (!info)
-      return;
+    if (!info) return;
     await this.writeAllClocksWithInfo(file, info);
   }
   async writeAllClocksWithInfo(file, info) {
@@ -341,7 +363,16 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
 var import_obsidian2 = require("obsidian");
 var DefaultSettings = {
   clockSize: 150,
-  clockColor: "#ff5757"
+  clockColor: "#70909e",
+  paletteColors: [
+    "#1f0000",
+    "#ab1212",
+    "#006d75",
+    "#c8d6e5",
+    "#ffffff",
+    "#caa212",
+    "#6e8776"
+  ]
 };
 var SettingsTab = class extends import_obsidian2.PluginSettingTab {
   constructor(app, plugin) {
@@ -352,10 +383,12 @@ var SettingsTab = class extends import_obsidian2.PluginSettingTab {
     const { containerEl } = this;
     let { settings } = this.plugin;
     containerEl.empty();
-    new import_obsidian2.Setting(containerEl).setName("Clock Size").setDesc("How big the clock will be.").addText((text) => {
-      text.setValue(settings.clockSize.toString()).onChange(async (value) => {
-        settings.clockSize = Number(value);
+    new import_obsidian2.Setting(containerEl).setName("Clock Size").setDesc("How big the clock will be.").addSlider((slider) => {
+      slider.setLimits(60, 300, 10).setValue(settings.clockSize).setDynamicTooltip().onChange(async (value) => {
+        var _a;
+        settings.clockSize = value;
         await this.plugin.saveSettings();
+        (_a = this.plugin.clocks) == null ? void 0 : _a.forEach((c) => c.refresh());
       });
     });
     new import_obsidian2.Setting(containerEl).setName("Clock Color").setDesc("Default clock color on creation.").addColorPicker((colorPicker) => {
@@ -363,6 +396,84 @@ var SettingsTab = class extends import_obsidian2.PluginSettingTab {
         settings.clockColor = value;
         await this.plugin.saveSettings();
       });
+    });
+    new import_obsidian2.Setting(containerEl).setName("Color Palette").setDesc("Quick-select colors available on each clock. Click a swatch to remove it.");
+    const paletteWrap = containerEl.createDiv({ cls: "rpg-clock-palette-editor" });
+    this.renderPaletteEditor(paletteWrap);
+  }
+  renderPaletteEditor(wrap) {
+    wrap.empty();
+    const { settings } = this.plugin;
+    const swatchRow = wrap.createDiv({ cls: "rpg-clock-palette-swatches" });
+    let dragFrom = null;
+    for (let i = 0; i < settings.paletteColors.length; i++) {
+      const color = settings.paletteColors[i];
+      const swatch = swatchRow.createDiv({ cls: "rpg-clock-palette-swatch" });
+      swatch.style.background = color;
+      swatch.setAttribute("title", `${color} \u2014 click to edit, right-click to remove`);
+      swatch.draggable = true;
+      const colorPicker = swatch.createEl("input", { cls: "rpg-clock-palette-swatch-picker" });
+      colorPicker.type = "color";
+      colorPicker.value = color;
+      colorPicker.addEventListener("input", async () => {
+        settings.paletteColors[i] = colorPicker.value;
+        swatch.style.background = colorPicker.value;
+        swatch.setAttribute("title", `${colorPicker.value} \u2014 click to edit, right-click to remove`);
+        await this.plugin.saveSettings();
+      });
+      swatch.addEventListener("click", () => colorPicker.click());
+      swatch.addEventListener("contextmenu", async (e) => {
+        e.preventDefault();
+        settings.paletteColors.splice(i, 1);
+        await this.plugin.saveSettings();
+        this.renderPaletteEditor(wrap);
+      });
+      swatch.addEventListener("dragstart", (e) => {
+        dragFrom = i;
+        e.dataTransfer.effectAllowed = "move";
+        setTimeout(() => swatch.addClass("rpg-clock-palette-swatch--dragging"), 0);
+      });
+      swatch.addEventListener("dragend", () => {
+        dragFrom = null;
+        swatchRow.querySelectorAll(".rpg-clock-palette-swatch").forEach((el) => {
+          el.removeClass("rpg-clock-palette-swatch--dragging");
+          el.removeClass("rpg-clock-palette-swatch--over");
+        });
+      });
+      swatch.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        swatchRow.querySelectorAll(".rpg-clock-palette-swatch").forEach(
+          (el) => el.removeClass("rpg-clock-palette-swatch--over")
+        );
+        swatch.addClass("rpg-clock-palette-swatch--over");
+      });
+      swatch.addEventListener("dragleave", (e) => {
+        if (!swatch.contains(e.relatedTarget))
+          swatch.removeClass("rpg-clock-palette-swatch--over");
+      });
+      swatch.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        swatch.removeClass("rpg-clock-palette-swatch--over");
+        if (dragFrom === null || dragFrom === i) return;
+        const [moved] = settings.paletteColors.splice(dragFrom, 1);
+        settings.paletteColors.splice(i, 0, moved);
+        await this.plugin.saveSettings();
+        this.renderPaletteEditor(wrap);
+      });
+    }
+    const addRow = wrap.createDiv({ cls: "rpg-clock-palette-add-row" });
+    const picker = addRow.createEl("input", { cls: "rpg-clock-palette-picker" });
+    picker.type = "color";
+    picker.value = "#ffffff";
+    const addBtn = addRow.createEl("button", { text: "Add color" });
+    addBtn.addEventListener("click", async () => {
+      const color = picker.value;
+      if (!settings.paletteColors.includes(color)) {
+        settings.paletteColors.push(color);
+        await this.plugin.saveSettings();
+        this.renderPaletteEditor(wrap);
+      }
     });
   }
   hide() {
@@ -429,6 +540,10 @@ var CommandInput = class extends import_obsidian3.Modal {
 // src/main.ts
 var urlRegex = /\/([^\/]+)\/?$/;
 var RpgClock = class extends import_obsidian4.Plugin {
+  constructor() {
+    super(...arguments);
+    this.pendingFocusLast = false;
+  }
   async onload() {
     this.clocks = [];
     await this.loadSettings();
@@ -476,7 +591,7 @@ ${name}:0/${sections}
       });
       new import_obsidian4.Notice(`Added ${name}`);
     } catch (error) {
-      new import_obsidian4.Notice(error);
+      new import_obsidian4.Notice(String(error));
     }
   }
   async loadSettings() {

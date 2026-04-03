@@ -1,4 +1,13 @@
 {
-  "clockSize": 150,
-  "clockColor": "#70909e"
+  "clockSize": 120,
+  "clockColor": "#bfbfbf",
+  "paletteColors": [
+    "#1f0000",
+    "#ab1212",
+    "#006d75",
+    "#c8d6e5",
+    "#bfbfbf",
+    "#caa212",
+    "#6e8776"
+  ]
 }

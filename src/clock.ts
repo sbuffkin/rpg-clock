@@ -28,6 +28,15 @@ export class Clock extends MarkdownRenderChild {
     onload() {
         this.containerEl.innerHTML = '';
         this.renderAll();
+        if (this.plugin.pendingFocusLast) {
+            this.plugin.pendingFocusLast = false;
+            setTimeout(() => {
+                const nameInputs = this.containerEl.querySelectorAll<HTMLInputElement>('.clock-name');
+                const last = nameInputs[nameInputs.length - 1];
+                last?.focus();
+                last?.select();
+            }, 0);
+        }
     }
 
     unload() {
@@ -43,12 +52,10 @@ export class Clock extends MarkdownRenderChild {
     }
 
     private renderAll() {
-        const n = this.clockDefs.length;
-        const cols = Math.ceil(Math.sqrt(n + 1));
+        const size = this.settings.clockSize ?? 100;
         this.containerEl.style.display = 'grid';
-        this.containerEl.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+        this.containerEl.style.gridTemplateColumns = `repeat(auto-fill, minmax(${size + 40}px, 1fr))`;
         this.containerEl.style.gap = '8px';
-        this.containerEl.style.justifyContent = 'start';
         this.containerEl.style.alignItems = 'start';
 
         const clockEls: HTMLElement[] = [];
@@ -98,15 +105,9 @@ export class Clock extends MarkdownRenderChild {
         this.buildSlices(coreEl, def.total, def.filled);
         this.buildBars(coreEl, def.total);
 
-        // Color picker at bottom-right of widget
-        const colorInput = widgetEl.createEl('input', { cls: 'clock-color-btn' });
-        colorInput.type = 'color';
-        colorInput.value = this.toHex(color);
-        colorInput.addEventListener('change', () => {
-            def.color = colorInput.value as Color;
-            clockEl.style.setProperty('--clock-color', def.color);
-            this.updateClockSource(def);
-        });
+        // Color button at bottom-right of widget — toggles palette
+        const colorBtn = widgetEl.createEl('button', { cls: 'clock-color-btn' });
+        colorBtn.style.background = color;
 
         // Controls below the clock
         const controlsEl = clockEl.createDiv({ cls: 'clock-controls' });
@@ -124,11 +125,32 @@ export class Clock extends MarkdownRenderChild {
         totalInput.addEventListener('focus', () => totalInput.select());
         const incBtn = stepperEl.createEl('button', { cls: 'clock-btn-inc', text: '+' });
 
+        // Palette swatches — hidden until color button is clicked
+        const palette = this.settings.paletteColors ?? [];
+        const swatchRow = controlsEl.createDiv({ cls: 'clock-palette clock-palette--hidden' });
+        for (const paletteColor of palette) {
+            const swatch = swatchRow.createDiv({ cls: 'clock-palette-swatch' });
+            swatch.style.background = paletteColor;
+            swatch.setAttribute('title', paletteColor);
+            swatch.addEventListener('click', () => {
+                def.color = paletteColor;
+                clockEl.style.setProperty('--clock-color', paletteColor);
+                colorBtn.style.background = paletteColor;
+                swatchRow.addClass('clock-palette--hidden');
+                this.updateClockSource(def);
+            });
+        }
+
+        colorBtn.addEventListener('click', () => {
+            swatchRow.toggleClass('clock-palette--hidden', !swatchRow.hasClass('clock-palette--hidden'));
+        });
+
         // Name input
         const nameInput = controlsEl.createEl('input', { cls: 'clock-name' });
         nameInput.type = 'text';
         nameInput.value = def.name;
         nameInput.placeholder = 'Clock name';
+        nameInput.addEventListener('focus', () => nameInput.select());
 
         // Decrement filled
         decBtn.addEventListener('click', () => {
@@ -235,19 +257,49 @@ export class Clock extends MarkdownRenderChild {
         const size = this.settings.clockSize ?? 100;
         const addBtn = container.createDiv({ cls: 'clock-add' });
         addBtn.style.setProperty('--clock-size', `${size}px`);
-        addBtn.createEl('span', { text: '+' });
-        addBtn.addEventListener('click', () => this.addClock());
+        for (const sections of [4, 6, 8, 10]) {
+            const opt = addBtn.createEl('button', { cls: 'clock-add-opt' });
+            opt.appendChild(this.buildClockPreviewSVG(sections));
+            opt.createEl('span', { cls: 'clock-add-label', text: `+ ${sections}` });
+            opt.addEventListener('click', () => this.addClock(sections));
+        }
     }
 
-    private async addClock(): Promise<void> {
+    private buildClockPreviewSVG(sections: number): SVGSVGElement {
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg') as SVGSVGElement;
+        svg.setAttribute('viewBox', '0 0 40 40');
+        svg.setAttribute('class', 'clock-add-preview');
+
+        const circle = document.createElementNS(ns, 'circle');
+        circle.setAttribute('cx', '20');
+        circle.setAttribute('cy', '20');
+        circle.setAttribute('r', '17');
+        svg.appendChild(circle);
+
+        for (let i = 0; i < sections; i++) {
+            const angle = (i / sections) * 2 * Math.PI - Math.PI / 2;
+            const line = document.createElementNS(ns, 'line');
+            line.setAttribute('x1', '20');
+            line.setAttribute('y1', '20');
+            line.setAttribute('x2', (20 + 17 * Math.cos(angle)).toFixed(2));
+            line.setAttribute('y2', (20 + 17 * Math.sin(angle)).toFixed(2));
+            svg.appendChild(line);
+        }
+
+        return svg;
+    }
+
+    private async addClock(sections: number): Promise<void> {
         const file = this.plugin.app.vault.getAbstractFileByPath(this.ctx.sourcePath) as TFile;
         if (!file) return;
         const info = this.ctx.getSectionInfo(this.containerEl);
         if (!info) return;
-        const content = await this.plugin.app.vault.read(file);
-        const lines = content.split('\n');
-        lines.splice(info.lineEnd, 0, 'New Clock:0/4');
-        await this.plugin.app.vault.modify(file, lines.join('\n'));
+
+        const newDef: ClockDef = { name: 'New Clock', filled: 0, total: sections, lineOffset: this.clockDefs.length };
+        this.clockDefs.push(newDef);
+        this.plugin.pendingFocusLast = true;
+        await this.writeAllClocks();
     }
 
     // ── DOM helpers ───────────────────────────────────────────────────────────
