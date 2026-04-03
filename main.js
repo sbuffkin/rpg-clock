@@ -136,22 +136,21 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     const coreEl = widgetEl.createDiv({ cls: "core" });
     this.buildSlices(coreEl, def.total, def.filled);
     this.buildBars(coreEl, def.total);
+    const wireSliceHandlers = () => {
+      coreEl.querySelectorAll(".slice").forEach((slice, i) => {
+        slice.addEventListener("click", () => {
+          def.filled = i + 1;
+          filledVal.textContent = String(def.filled);
+          this.updateFilledDOM(clockEl, def.filled);
+          this.updateClockSource(def);
+        });
+      });
+    };
+    wireSliceHandlers();
     const colorBtn = widgetEl.createEl("button", { cls: "clock-color-btn" });
     colorBtn.style.background = color;
-    const controlsEl = clockEl.createDiv({ cls: "clock-controls" });
-    const stepperEl = controlsEl.createDiv({ cls: "clock-stepper" });
-    const decBtn = stepperEl.createEl("button", { cls: "clock-btn-dec", text: "-" });
-    const filledVal = stepperEl.createEl("span", { cls: "clock-filled-val", text: String(def.filled) });
-    stepperEl.createEl("span", { cls: "clock-sep", text: "/" });
-    const totalInput = stepperEl.createEl("input", { cls: "clock-total" });
-    totalInput.type = "number";
-    totalInput.min = "1";
-    totalInput.max = "24";
-    totalInput.value = String(def.total);
-    totalInput.addEventListener("focus", () => totalInput.select());
-    const incBtn = stepperEl.createEl("button", { cls: "clock-btn-inc", text: "+" });
     const palette = (_b = this.settings.paletteColors) != null ? _b : [];
-    const swatchRow = controlsEl.createDiv({ cls: "clock-palette clock-palette--hidden" });
+    const swatchRow = clockEl.createDiv({ cls: "clock-palette clock-palette--hidden" });
     for (const paletteColor of palette) {
       const swatch = swatchRow.createDiv({ cls: "clock-palette-swatch" });
       swatch.style.background = paletteColor;
@@ -167,6 +166,18 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
     colorBtn.addEventListener("click", () => {
       swatchRow.toggleClass("clock-palette--hidden", !swatchRow.hasClass("clock-palette--hidden"));
     });
+    const controlsEl = clockEl.createDiv({ cls: "clock-controls" });
+    const stepperEl = controlsEl.createDiv({ cls: "clock-stepper" });
+    const decBtn = stepperEl.createEl("button", { cls: "clock-btn-dec", text: "-" });
+    const filledVal = stepperEl.createEl("span", { cls: "clock-filled-val", text: String(def.filled) });
+    stepperEl.createEl("span", { cls: "clock-sep", text: "/" });
+    const totalInput = stepperEl.createEl("input", { cls: "clock-total" });
+    totalInput.type = "number";
+    totalInput.min = "1";
+    totalInput.max = "24";
+    totalInput.value = String(def.total);
+    totalInput.addEventListener("focus", () => totalInput.select());
+    const incBtn = stepperEl.createEl("button", { cls: "clock-btn-inc", text: "+" });
     const nameDisplay = controlsEl.createEl("div", { cls: "clock-name-display" });
     nameDisplay.textContent = def.name || "Clock name";
     if (!def.name) nameDisplay.addClass("clock-name-display--placeholder");
@@ -225,6 +236,7 @@ var Clock = class extends import_obsidian.MarkdownRenderChild {
       coreEl.empty();
       this.buildSlices(coreEl, def.total, def.filled);
       this.buildBars(coreEl, def.total);
+      wireSliceHandlers();
       this.updateClockSource(def);
     });
     return clockEl;

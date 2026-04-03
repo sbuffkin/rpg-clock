@@ -1,6 +1,6 @@
 {
   "name": "obsidian-rpg-clock",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "This is a clock plugin for your RPG in Obsidian (https://obsidian.md)",
   "main": "src/main.js",
   "scripts": {

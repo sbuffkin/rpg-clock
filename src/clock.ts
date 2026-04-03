@@ -103,29 +103,25 @@ export class Clock extends MarkdownRenderChild {
         this.buildSlices(coreEl, def.total, def.filled);
         this.buildBars(coreEl, def.total);
 
+        const wireSliceHandlers = () => {
+            coreEl.querySelectorAll<HTMLElement>('.slice').forEach((slice, i) => {
+                slice.addEventListener('click', () => {
+                    def.filled = i + 1;
+                    filledVal.textContent = String(def.filled);
+                    this.updateFilledDOM(clockEl, def.filled);
+                    this.updateClockSource(def);
+                });
+            });
+        };
+        wireSliceHandlers();
+
         // Color button at bottom-right of widget — toggles palette
         const colorBtn = widgetEl.createEl('button', { cls: 'clock-color-btn' });
         colorBtn.style.background = color;
 
-        // Controls below the clock
-        const controlsEl = clockEl.createDiv({ cls: 'clock-controls' });
-
-        // Stepper row: [-] filled / [total] [+]
-        const stepperEl = controlsEl.createDiv({ cls: 'clock-stepper' });
-        const decBtn = stepperEl.createEl('button', { cls: 'clock-btn-dec', text: '-' });
-        const filledVal = stepperEl.createEl('span', { cls: 'clock-filled-val', text: String(def.filled) });
-        stepperEl.createEl('span', { cls: 'clock-sep', text: '/' });
-        const totalInput = stepperEl.createEl('input', { cls: 'clock-total' });
-        totalInput.type = 'number';
-        totalInput.min = '1';
-        totalInput.max = '24';
-        totalInput.value = String(def.total);
-        totalInput.addEventListener('focus', () => totalInput.select());
-        const incBtn = stepperEl.createEl('button', { cls: 'clock-btn-inc', text: '+' });
-
-        // Palette swatches — hidden until color button is clicked
+        // Palette swatches — directly below the widget, hidden until color button is clicked
         const palette = this.settings.paletteColors ?? [];
-        const swatchRow = controlsEl.createDiv({ cls: 'clock-palette clock-palette--hidden' });
+        const swatchRow = clockEl.createDiv({ cls: 'clock-palette clock-palette--hidden' });
         for (const paletteColor of palette) {
             const swatch = swatchRow.createDiv({ cls: 'clock-palette-swatch' });
             swatch.style.background = paletteColor;
@@ -142,6 +138,22 @@ export class Clock extends MarkdownRenderChild {
         colorBtn.addEventListener('click', () => {
             swatchRow.toggleClass('clock-palette--hidden', !swatchRow.hasClass('clock-palette--hidden'));
         });
+
+        // Controls below the palette
+        const controlsEl = clockEl.createDiv({ cls: 'clock-controls' });
+
+        // Stepper row: [-] filled / [total] [+]
+        const stepperEl = controlsEl.createDiv({ cls: 'clock-stepper' });
+        const decBtn = stepperEl.createEl('button', { cls: 'clock-btn-dec', text: '-' });
+        const filledVal = stepperEl.createEl('span', { cls: 'clock-filled-val', text: String(def.filled) });
+        stepperEl.createEl('span', { cls: 'clock-sep', text: '/' });
+        const totalInput = stepperEl.createEl('input', { cls: 'clock-total' });
+        totalInput.type = 'number';
+        totalInput.min = '1';
+        totalInput.max = '24';
+        totalInput.value = String(def.total);
+        totalInput.addEventListener('focus', () => totalInput.select());
+        const incBtn = stepperEl.createEl('button', { cls: 'clock-btn-inc', text: '+' });
 
         // Name — display label + hidden input, swap on click/blur
         const nameDisplay = controlsEl.createEl('div', { cls: 'clock-name-display' });
@@ -212,6 +224,7 @@ export class Clock extends MarkdownRenderChild {
             coreEl.empty();
             this.buildSlices(coreEl, def.total, def.filled);
             this.buildBars(coreEl, def.total);
+            wireSliceHandlers();
             this.updateClockSource(def);
         });
 
